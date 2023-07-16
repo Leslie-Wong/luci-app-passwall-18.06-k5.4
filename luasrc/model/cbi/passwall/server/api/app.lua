@@ -146,7 +146,7 @@ local function start()
                 config = require(require_dir .. "v2ray").gen_config(user)
                 bin = ln_run(api.get_v2ray_path(), "v2ray", "run -c " .. config_file, log_path)
             elseif type == "Xray" then
-                config = require(require_dir .. "v2ray").gen_config(user)
+                config = require(require_dir .. "xray").gen_config(user)
                 bin = ln_run(api.get_xray_path(), "xray", "run -c " .. config_file, log_path)
             elseif type == "Trojan" then
                 config = require(require_dir .. "trojan").gen_config(user)

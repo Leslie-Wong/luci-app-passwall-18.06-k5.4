@@ -363,7 +363,7 @@ tls.validate = function(self, value, t)
         if value == "0" and (type == "Trojan" or type == "Trojan-Plus") then
             return nil, translate("Original Trojan only supported 'tls', please choose 'tls'.")
         end
-        if value == "1" then
+        if value == "1" and reality == false then
             local ca = tls_certificateFile:formvalue(t) or ""
             local key = tls_keyFile:formvalue(t) or ""
             if ca == "" or key == "" then
@@ -396,7 +396,42 @@ flow = s:option(Value, "flow", translate("flow"))
 flow.default = "xtls-rprx-direct"
 flow:value("xtls-rprx-origin")
 flow:value("xtls-rprx-direct")
+flow:value("xtls-rprx-vision")
+flow:value("xtls-rprx-vision-udp443")
 flow:depends("xtls", true)
+
+
+reality = s:option(Flag, "reality", translate("reality"))
+reality.default = 0
+reality:depends({ type = "Xray", protocol = "vless", tls = true })
+
+reality_show = s:option(Flag, "reality_show", translate("show"))
+reality_show.default = 0
+reality_show:depends({ reality = "Xray", tls = true, reality = true })
+
+reality_dest = s:option(Value, "reality_dest", translate("dest"))
+reality_dest.default = ""
+reality_dest:depends({ reality = "Xray", tls = true, reality = true })
+
+reality_xver = s:option(Value, "reality_xver", translate("xver"))
+reality_xver.default = ""
+reality_xver:depends({ reality = "Xray", tls = true, reality = true })
+
+reality_servername = s:option(DynamicList, "reality_servername", translate("servername"))
+reality_servername.default = ""
+reality_servername:depends({ reality = "Xray", tls = true, reality = true })
+
+reality_privateKey = s:option(Value, "reality_privateKey", translate("privateKey"), ":~# /usr/bin/xray x25519")
+reality_privateKey.default = ""
+reality_privateKey:depends({ reality = "Xray", tls = true, reality = true })
+
+reality_publicKey = s:option(Value, "reality_publicKey", translate("publicKey"))
+reality_publicKey.default = ""
+reality_publicKey:depends({ reality = "Xray", tls = true, reality = true })
+
+reality_shortids = s:option(DynamicList, "reality_shortids", translate("shortIds"))
+reality_shortids.default = ""
+reality_shortids:depends({ reality = "Xray", tls = true, reality = true })
 
 alpn = s:option(ListValue, "alpn", translate("alpn"))
 alpn.default = "h2,http/1.1"
@@ -404,7 +439,7 @@ alpn:value("h2,http/1.1")
 alpn:value("h2")
 alpn:value("http/1.1")
 alpn:depends({ type = "V2ray", tls = true })
-alpn:depends({ type = "Xray", tls = true })
+alpn:depends({ type = "Xray", tls = true, reality = false })
 
 -- [[ TLS部分 ]] --
 
@@ -420,7 +455,7 @@ tls_certificateFile.validate = function(self, value, t)
     return nil
 end
 tls_certificateFile.default = "/etc/config/ssl/" .. arg[1] .. ".pem"
-tls_certificateFile:depends("tls", true)
+tls_certificateFile:depends({tls = true, reality = false})
 tls_certificateFile:depends("type", "Hysteria")
 
 tls_keyFile = s:option(FileUpload, "tls_keyFile", translate("Private key absolute path"), translate("as:") .. "/etc/ssl/private.key")
@@ -435,7 +470,7 @@ tls_keyFile.validate = function(self, value, t)
     return nil
 end
 tls_keyFile.default = "/etc/config/ssl/" .. arg[1] .. ".key"
-tls_keyFile:depends("tls", true)
+tls_keyFile:depends({tls = true, reality = false})
 tls_keyFile:depends("type", "Hysteria")
 
 tls_sessionTicket = s:option(Flag, "tls_sessionTicket", translate("Session Ticket"))
