@@ -1,4 +1,4 @@
-module("luci.model.cbi.passwall.server.api.xray", package.seeall)
+module("luci.model.cbi.passwall.server.api.v2ray", package.seeall)
 local uci = require"luci.model.uci".cursor()
 
 function gen_config(user)
@@ -12,15 +12,8 @@ function gen_config(user)
         if user.uuid then
             local clients = {}
             for i = 1, #user.uuid do
-                email = nil
-                if user.email  then
-                    if user.email[i]  then
-                        email = user.email[i]
-                    end
-                end
                 clients[i] = {
                     id = user.uuid[i],
-                    email = email,
                     flow = ("1" == user.xtls) and user.flow or nil
                 }
             end
@@ -125,52 +118,25 @@ function gen_config(user)
     }
 
     if user.transit_node and user.transit_node ~= "nil" then
-        local outbound = nil
-        if user.outbound_node == "_iface" and user.outbound_node_iface then
-            outbound = {
-                protocol = "freedom",
-                tag = "outbound",
-                streamSettings = {
-                    sockopt = {
-                        interface = user.outbound_node_iface
-                    }
-                }
+        local transit_node_t = uci:get_all("passwall", user.transit_node)
+        if user.transit_node == "_socks" or user.transit_node == "_http" then
+            transit_node_t = {
+                type = user.type,
+                protocol = user.transit_node:gsub("_", ""),
+                transport = "tcp",
+                address = user.transit_node_address,
+                port = user.transit_node_port,
+                username = (user.transit_node_username and user.transit_node_username ~= "") and user.transit_node_username or nil,
+                password = (user.transit_node_password and user.transit_node_password ~= "") and user.transit_node_password or nil,
             }
-        else
-            local transit_node_t = uci:get_all("passwall", user.transit_node)
-            if user.transit_node == "_socks" or user.transit_node == "_http" then
-                transit_node_t = {
-                    type = user.type,
-                    protocol = user.transit_node:gsub("_", ""),
-                    transport = "tcp",
-                    address = user.transit_node_address,
-                    port = user.transit_node_port,
-                    username = (user.transit_node_username and user.transit_node_username ~= "") and user.transit_node_username or nil,
-                    password = (user.transit_node_password and user.transit_node_password ~= "") and user.transit_node_password or nil,
-                }
-            end
-            outbound = require("luci.model.cbi.passwall.api.gen_xray").gen_outbound(transit_node_t, "transit")
         end
+        local outbound = require("luci.model.cbi.passwall.api.gen_v2ray").gen_outbound(transit_node_t, "transit")
         if outbound then
             table.insert(outbounds, 1, outbound)
         end
     end
 
     local config = {
-        transport = nil,
-        policy = {
-            levels = {
-                [0] = {
-                    handshake = 10,
-                    connIdle = 300,
-                    uplinkOnly = 2,
-                    downlinkOnly = 5,
-                    statsUserUplink = false,
-                    statsUserDownlink = false,
-                    bufferSize = 10240
-                }
-            }
-        },
         log = {
             -- error = "/tmp/etc/passwall_server/log/" .. user[".name"] .. ".log",
             loglevel = ("1" == user.log) and user.loglevel or "none"
@@ -184,23 +150,8 @@ function gen_config(user)
                 settings = settings,
                 streamSettings = {
                     network = user.transport,
-                    security = ("1" == user.reality) and "reality" or "none",
-                    realitySettings = ("1" == user.tls and "1" == user.reality) and {
-						show = (user.reality_show == "1") and true or false,
-						dest = user.reality_dest,
-						xver = tonumber(user.reality_xver),
-						serverNames = user.reality_servername,
-						privateKey = user.reality_privateKey,
-						shortIds = user.reality_shortids or {""},
-                        minClientVer = "",
-                        maxClientVer = "",
-                        maxTimeDiff = 6000,
-					} or nil,
-                    sniffing = ("1" == user.tls and "1" == user.reality) and {
-                        enabled = true,
-                        destOverride = {"http", "tls"}
-                    } or nil,
-                    xtlsSettings = ("1" == user.tls and "1" == user.xtls  and "0" == user.reality) and {
+                    security = "none",
+                    xtlsSettings = ("1" == user.tls and "1" == user.xtls) and {
                         disableSystemRoot = false,
                         certificates = {
                             {
@@ -209,7 +160,7 @@ function gen_config(user)
                             }
                         }
                     } or nil,
-                    tlsSettings = ("1" == user.tls and "0" == user.reality) and {
+                    tlsSettings = ("1" == user.tls) and {
                         disableSystemRoot = false,
                         certificates = {
                             {
@@ -218,7 +169,7 @@ function gen_config(user)
                             }
                         }
                     } or nil,
-                    tcpSettings = (user.transport == "tcp"  and "1" == user.reality) and {
+                    tcpSettings = (user.transport == "tcp") and {
                         acceptProxyProtocol = (user.acceptProxyProtocol and user.acceptProxyProtocol == "1") and true or false,
                         header = {
                             type = user.tcp_guise,
@@ -246,7 +197,7 @@ function gen_config(user)
                         headers = (user.ws_host) and {Host = user.ws_host} or nil,
                         path = user.ws_path
                     } or nil,
-                    httpSettings = (user.transport == "h2"   and "0" == user.reality) and {
+                    httpSettings = (user.transport == "h2") and {
                         path = user.h2_path, host = user.h2_host
                     } or nil,
                     dsSettings = (user.transport == "ds") and {
@@ -283,7 +234,7 @@ function gen_config(user)
         end
     end
 
-    if "1" == user.tls and "0" == user.reality then
+    if "1" == user.tls then
         config.inbounds[1].streamSettings.security = "tls"
         if user.type == "Xray" and user.xtls and user.xtls == "1" then
             config.inbounds[1].streamSettings.security = "xtls"
